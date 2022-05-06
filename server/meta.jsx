@@ -117,8 +117,8 @@ function validateHostAndPath(hostname : string | null, pathname : string | null)
     return { hostname, pathname };
 }
 
-function validateSDKUrl(sdkUrl : string) {
-    const { protocol, host, hostname: sourceHostname, pathname : sourcePathname, query, hash } = urlLib.parse(sdkUrl, true);
+function validateSDKUrl(sdkUrl : string) : string {
+    const { protocol, host, hostname: sourceHostname, pathname : sourcePathname, query, hash, port } = urlLib.parse(sdkUrl, true);
     const { hostname, pathname } = validateHostAndPath(sourceHostname, sourcePathname);
 
     if (!sdkUrl.startsWith(PROTOCOL.HTTP) && !sdkUrl.startsWith(PROTOCOL.HTTPS)) {
@@ -133,6 +133,12 @@ function validateSDKUrl(sdkUrl : string) {
 
     if (isLegacySDKUrl(hostname, pathname)) {
         validateLegacySDKUrl({ pathname });
+        return urlLib.format({
+            protocol,
+            hostname,
+            port,
+            pathname
+        });
     } else if (isSDKUrl(hostname)) {
         if (hostname !== HOST.LOCALHOST && protocol !== PROTOCOL.HTTPS) {
             throw new Error(`Expected protocol for sdk url to be ${ PROTOCOL.HTTPS } for host: ${ hostname } - got ${ protocol || 'undefined' }`);
@@ -146,6 +152,8 @@ function validateSDKUrl(sdkUrl : string) {
     } else if (host && !isLocalUrl(host)) {
         throw new Error(`Expected host to be a subdomain of ${ HOST.PAYPAL } or ${ HOST.PAYPALOBJECTS }`);
     }
+
+    return sdkUrl;
 }
 
 type SDKAttributes = {|
@@ -193,13 +201,13 @@ function getSDKScriptAttributes(sdkUrl : ?string, allAttrs : ?{ [string] : strin
 }
 
 export function unpackSDKMeta(sdkMeta? : string) : SDKMeta {
-
-    const { url, attrs } = sdkMeta
+    const { url : sdkUrl, attrs } = sdkMeta
         ? JSON.parse(Buffer.from(sdkMeta, 'base64').toString('utf8'))
         : DEFAULT_SDK_META;
+    let url : string;
 
-    if (url) {
-        validateSDKUrl(url);
+    if (sdkUrl) {
+        url = validateSDKUrl(sdkUrl);
     }
 
     const getSDKLoader = ({ baseURL = DEFAULT_LEGACY_SDK_BASE_URL, nonce = '' } = {}) => {
